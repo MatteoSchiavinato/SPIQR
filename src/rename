@@ -20,7 +20,7 @@ parser.add_argument("-R1", "--read-file-1", help="The reads file 1 (in case of s
 parser.add_argument("-R2", "--read-file-2", help="The reads file 2, use only when the reads are paired-end.", metavar="PATH")
 parser.add_argument("-o", "--output-directory", help="Specify the path to the output directory you want your output files in. Default=CURRENT", default=".", metavar="PATH")
 parser.add_argument("-t", "--reads-type", help="Specify \"PE\" for paired-end reads and \"SE\" for single-end reads.", metavar="PE|SE", required=True)
-parser.add_argument("--basename", help="Each read of your file or paired-end files will have this basename.", metavar="NAME", required=True)
+parser.add_argument("--basename", help="Each of the output files will have this basename followed by the correspondant input file name", metavar="NAME", required=True)
 parser.add_argument("--separator", help="Default: \"/\". Reads will be renamed like /1 and /2, which is strongly recommended if you are then running the Augustus pipeline for gene prediction.", metavar="CHARACTER", default="/")
 parser.add_argument("--use-for-rev", help="Use the /for - /rev notation instead of /1 - /2. Use only with paired-end reads.", action="store_true") 
 parser.add_argument("--fasta", help="The program will consider the reads to be in FASTA format (default is FASTQ).", action="store_true")
