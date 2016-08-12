@@ -1,0 +1,100 @@
+#!/usr/bin/env python 
+
+
+### WARNING ###
+# USE THIS PROGRAM WITH PYTHON 2.7.*
+# Matteo Schiavinato
+# 2016
+# BOKU - Vienna Institute of Biotechnology
+
+
+# modules
+import sys
+import argparse
+import time
+import os.path
+
+#argument_parser
+parser = argparse.ArgumentParser()
+parser.add_argument("-i", "--input-file", help="The input file. It must be a FASTA or FASTQ file. It can be a reads file in both formats, or whatever MULTIFASTA file. For FASTQ files, only files with the sequence in a single line (the second line) will generate a valid output.", required=True)
+parser.add_argument("-o", "--outdir", help="The output directory.", default=".")
+parser.add_argument("-t", "--sequences-type", help="Specify if your sequences are \"fasta\" or \"fastq\" format (\"fa\" for FASTA; \"fastq\" for FASTQ).")
+parser.add_argument("--number-of-sequences", help="The number of sequences for each chunk. After the subsetting, each output file will contain N sequences, except for the last file which will contain what's left. This argument is to be used only if the \"number-of-chunks\" is not.", type=int)
+parser.add_argument("--number-of-chunks", help="The number of chunks that will be generated. Each chunk will have approximately the same dimension. This argument must be used only if the \"number-of-sequences\" argument is not.", type=int)
+args = parser.parse_args()
+
+#input_file_reading
+sys.stderr.write("Reading input file...\n")
+INPUT = open(args.input_file, "r")
+filename = os.path.basename(os.path.splitext(args.input_file)[0])
+if args.sequences_type == "fa":
+	sequences_dic = {}
+	for line in INPUT:
+		x = line.rstrip()
+		if x[0:1] == ">":
+			name = x
+			sequences_dic[name] = []
+		else:
+			sequences_dic[name].append(x)
+
+elif args.sequences_type == "fastq":
+	sequences_dic = {}
+	k=0
+	for line in INPUT:
+		x = line.rstrip()
+		if k%4 == 0:
+			name = x
+			sequences_dic[name] = []
+			k+=1
+		else:
+			sequences_dic[name].append(x)
+			k+=1
+
+else:
+	sys.exit("Specified sequence format looks not like \"fasta\" or \"fastq\".\nProgram will be closed.\n\n\n################\n\n\n")
+
+INPUT.close()
+sys.stderr.write("Done.\n")
+
+#output_file_generation
+if args.number_of_sequences:
+	sys.stderr.write("Generating output files...\n")
+	k=0
+	file_number=1
+	for entry in sequences_dic:
+		if k == 0:
+			OUTPUT = open("{0}/{1}.part_{2}.{3}".format(args.outdir, filename, file_number, args.sequences_type), "w")
+		print >>OUTPUT, entry
+		print >>OUTPUT, "\n".join(sequences_dic[entry])
+		k+=1
+		if k == args.number_of_sequences:
+			file_number+=1
+			k=0
+
+elif args.number_of_chunks:
+	sys.stderr.write("Estimating chunk dimension...\n")
+	input_size = int(os.path.getsize(args.input_file))
+	size_threshold = int(input_size / args.number_of_chunks)
+	sys.stderr.write("Input Size: {0}\n".format(input_size))
+	sys.stderr.write("Number of Chunks: {0}\n".format(args.number_of_chunks))
+	sys.stderr.write("Size Threshold: {0}\n".format(size_threshold))
+	sys.stderr.write("Generating output files...\n")
+	k=0
+	file_number=1
+	for entry in sequences_dic:
+		if k == 0:
+			sys.stderr.write("File Number: {0}\n".format(file_number))
+			OUTPUT = open("{0}/{1}.part_{2}.{3}".format(args.outdir, filename, file_number, args.sequences_type), "w")
+			sys.stderr.write("Writing to output file {0}\n".format(file_number))
+			k=1
+		print >>OUTPUT, entry
+		print >>OUTPUT, "\n".join(sequences_dic[entry])
+		if int(os.path.getsize("{0}/{1}.part_{2}.{3}".format(args.outdir, filename, file_number, args.sequences_type)))>=size_threshold:
+			file_number += 1
+			k=0
+
+sys.stderr.write("Wrote output in {0} files.\n".format(file_number))
+timestamp_2 = time.asctime().split(" ")[3]
+sys.stderr.write("Ended work at {0}\n".format(timestamp_2))
+
+sys.stderr.write("\n\n\n################\n\n\n")

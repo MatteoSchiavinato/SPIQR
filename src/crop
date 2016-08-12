@@ -1,0 +1,91 @@
+#!/usr/bin/env python
+
+### WARNING ###
+# USE THIS PROGRAM WITH PYTHON 2.7.* 
+# Matteo Schiavinato
+# 2016
+# BOKU - Vienna Institute of Biotechnology
+
+
+# import modules
+import argparse
+import time
+import sys
+
+# parser
+parser = argparse.ArgumentParser(prog="SPIQR crop", description="\n\n\nMatteo Schiavinato\n2016\nBOKU - Vienna Institute of Biotechnology\n\n\n", epilog="\n\n\n\n")
+inputcmd = parser.add_argument_group("++++++++++++ INPUT OPTIONS ++++++++++++")
+cropcmd = parser.add_argument_group("++++++++++++ CROPPING OPTIONS ++++++++++++")
+outputcmd = parser.add_argument_group("++++++++++++ OUTPUT OPTIONS ++++++++++++")
+inputcmd.add_argument("-R", "--read-files", help="The read files. Write as many files as you want, separated by [SPACE].", metavar="FILE", required=True, nargs="+")
+inputcmd.add_argument("--fasta", help="Reads are in FASTA format. [Default: off]", action="store_true")
+cropcmd.add_argument("--head", help="Crop <N> bases from the head of the reads. [Default: 0]", metavar="INTEGER", default=0, type=int)
+cropcmd.add_argument("--tail", help="Crop <N> bases from the tail of the reads. [Default: 0]", metavar="INTEGER", default=0, type=int)
+outputcmd.add_argument("-o", "--output-directory", help="Your output cropped files will all be placed in this directory", metavar="PATH", default="")
+outputcmd.add_argument("-b", "--basename", help="Every cropped file will have this prefix, followed by the original name.", metavar="STRING", default="cropped")
+args = parser.parse_args()
+
+# verifications
+exit_switch = "off"
+sys.stderr.write("[ {0} ]\tArguments correctly parsed\n".format(time.asctime()))
+if (args.head == 0) and (args.tail == 0):
+	sys.stderr.write("[ {0} ]\tIt seems that you either didn't set a [--head] and/or a [--tail], or you set them both to 0. The output file will be identical to the input file\n".format(time.asctime()))
+if not args.fasta:
+	sys.stderr.write("[ {0} ]\tChecking if all your files are FASTQ files\n".format(time.asctime()))
+	declared_prefix = "@"
+	#
+elif args.fasta:
+	sys.stderr.write("[ {0} ]\tChecking if all your files are FASTA files\n".format(time.asctime()))
+	declared_prefix = ">"
+	#
+for FILENAME in args.read_files:
+        INPUT = open(FILENAME, "r")
+	k=1
+	for line in INPUT:
+		while (k == 1):
+			prefix = line[0:1]
+			k+=1
+			#
+		break
+	#
+	if prefix != declared_prefix:
+		exit_switch = "on"
+		if args.fasta:
+			sys.stderr.write("[ {0} ]\t{1} is not FASTA\n".format(time.asctime(), FILENAME))
+		else:
+			sys.stderr.write("[ {0} ]\t{1} is not FASTQ\n".format(time.asctime(), FILENAME))
+
+if exit_switch == "on":
+	sys.exit("[ {0} ]\tOne or more conditions not satisfied. Read through the STDERR to find out what didn't work\n".format(time.asctime()))
+
+# cropping 
+sys.stderr.write("[ {0} ]\tCropping {1} bases from HEAD and {2} bases from TAIL\n".format(time.asctime(), args.head, args.tail))
+for FILENAME in args.read_files:
+	LOCAL_FILENAME = FILENAME.split("/")[-1]
+	INPUT = open(FILENAME, "r")
+	OUTPUT = open("{0}/{1}.{2}".format(args.output_directory, args.basename, LOCAL_FILENAME), "w")
+	k=0
+	for line in INPUT:
+		k+=1
+		if k==1:
+			name = line.rstrip()
+			print >>OUTPUT, name
+		elif k==2:
+			sequence = line.rstrip()[args.head:-args.tail]
+			print >>OUTPUT, sequence
+			if args.fasta:
+				k=0
+		elif k==3:
+			separator = line.rstrip()
+			print >>OUTPUT, separator
+		elif k==4:
+			quality = line.rstrip()[args.head:-args.tail]
+			print >>OUTPUT, quality
+			k=0
+
+
+INPUT.close()
+OUTPUT.close()
+sys.stderr.write("[ {0} ]\tReads cropped. Check your output at:\n{1}/{2}\n".format(time.asctime(), args.output_directory, args.basename))
+
+

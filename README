@@ -1,0 +1,20 @@
+### SPIQR ###
+SPanish InQuisition for the Reads
+
+Matteo Schiavinato
+BOKU - Vienna Institute of Biotechnology
+2016
+
+"SPIQR - SPanish InQuisition for the Reads" is a tool for processing sequencing reads from Illumina platforms.
+It combines functions to manipulate reads in several ways.
+
+INSTALL:
+cd /your/preferred/directory 
+git clone https://github.com/MatteoSchiavinato/SPIQR
+
+FEATURED FUNCTIONS:
+- reads deduplication (PCR duplicates) with adjustable level of sensitivity
+- reads renaming according on what you need
+- reads dividing into chunks, depending on number of reads or number of files
+- reads cropping
+- reads subsetting 

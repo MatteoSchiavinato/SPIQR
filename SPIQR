@@ -1,0 +1,57 @@
+#!/usr/bin/env python
+
+
+### WARNING ###
+# USE THIS PROGRAM WITH PYTHON 2.7.*
+# Matteo Schiavinato
+# 2016
+# BOKU - Vienna Institute of Biotechnology
+
+
+# import modules
+import time
+import sys
+import subprocess
+from os.path import abspath
+
+# check python version
+VERSION = "{0}.{1}".format(sys.version_info[0], sys.version_info[1])
+if float(VERSION) < float(2.6):
+        sys.exit("\n\n[ {0} ]\tThe python version check failed. Probably, your default /usr/bin/env python calls a version which is older than the 2.6 required for this script. Try running \"python --version\" to check this. If you don't have a 2.6 or newer version of python 2, install it to use this script. Then, run it using python/2.6 \"/full/path/to/script/reads-renamer_v1.0.py\" to prevent the code to use the shebang line and call your /env version of python\n".format(time.asctime()))
+
+OPTIONS = ["deduplicate", "rename", "divide", "crop", "subset"]
+HELP = ["-h", "--help"]
+
+# verifications
+PROGRAMDIR = "/".join(abspath(sys.argv[0]).split("/")[:-1])
+
+if (len(sys.argv) < 2) or (sys.argv[1] in HELP):
+	sys.exit('''
+
+All subfeatures work with both FASTA and FASTQ files.
+
+OPTIONS:
+deduplicate		remove PCR duplicates from the reads
+rename			rename the reads according to your needs
+divide			divide FASTA/Q files in parts
+crop			crop N bases from the HEAD or TAIL of the reads
+subset			create a subset from your read file(s)
+
+''')
+elif sys.argv[1] not in OPTIONS:
+	sys.exit('''\n\nInvalid option specified. Try:\n{0}\n\n'''.format("\n".join(OPTIONS)))
+		
+# run sub-program
+if len(sys.argv) < 3:
+	ARGS = "-h"
+else:
+	ARGS = " ".join(sys.argv[2:])
+
+PROGRAM = "{0}/src/{1}".format(PROGRAMDIR, sys.argv[1])
+CMD = []
+CMD.append(PROGRAM)
+ARGSLIST = ARGS.split(" ")
+for element in ARGSLIST:
+	CMD.append(element)
+	#
+subprocess.call(CMD)

@@ -1,0 +1,310 @@
+#!/usr/bin/env python
+
+
+### WARNING ###
+# USE THIS PROGRAM WITH PYTHON 2.7.*
+# Matteo Schiavinato
+# 2016
+# BOKU - Vienna Institute of Biotechnology
+
+
+import time
+import sys
+import os
+import argparse
+#
+#parser
+parser = argparse.ArgumentParser()
+parser.add_argument("-t", "--reads-type", help="PE: paired end, SE: single end.", required=True)
+parser.add_argument("-R1", "--reads-1", help="The FASTQ reads file to be processed. In case of paired end reads, the first of the two FASTQ reads files. [mandatory]", metavar="PATH", required=True)
+parser.add_argument("-R2", "--reads-2", help="Optional: if paired-end, the second of the two FASTQ reads files. Not needed if single-end.", metavar="PATH")
+parser.add_argument("--keep-names", help="Use this option to keep the original names of the reads. (uses more memory)", action="store_true")
+parser.add_argument("--fasta", help="Force FASTA output (removing quality scores).", action="store_true")
+parser.add_argument("-o", "--output-directory", help="The directory where to write the output files. Defaults to WORKDIR.", metavar="PATH", default=".")
+parser.add_argument("-l", "--read-length", help="OPTIONAL: Specify how long are your Illuina reads. If not provided, the program will deduce this data from the reads theirselves. Speeds up things.", metavar="INTEGER", type=int)
+parser.add_argument("-r", "--region-of-analysis", help="OPTIONAL: How long do you want the tested region of identity to be? The program will consider a region with a spanning length equal to [N] percentage of the read length.\nIf not provided, the program will automatically use the 99-percent of a read length.", metavar="INTEGER", default=99, type=int)
+args = parser.parse_args()
+#
+sys.stderr.write("[ {0} ]\tBegin\n".format(time.asctime()))
+#
+# preliminary calculations
+# script verifies the read length
+# estimates the region of analysis
+# detects how many nucleotides will be skipped from the margins
+typeslist = ["PE", "SE"]
+sys.stderr.write("[ {0} ]\tDoing verifications\n".format(time.asctime()))
+if args.reads_type not in typeslist:
+	sys.exit("Reads type must be one between PE or SE. See help for instructions.\n")
+	#
+if not args.read_length:
+	k=3
+	INPUT = open(args.reads_1, "r")
+	total = 0
+	for line in INPUT:
+		x = line.rstrip()
+		k+=1
+		if k%4 == 1:
+			total += len(x)
+		if k == 1500003:
+			break
+	#
+	INPUT.close()
+	read_length = int(float(total) / float(k/4))
+	#
+else:
+	read_length = int(args.reads_length)
+	#
+sys.stderr.write("\t- Estimated a read length of {} nucleotides on average.\n".format(read_length))
+#
+region = int((float(read_length) / 100)*args.region_of_analysis)
+n = int((float(read_length) / 100)*args.region_of_analysis)
+#
+sys.stderr.write("\t- Estimated a region of analysis of {} nucleotides.\n".format(region))
+dist_from_bord = (read_length - region)/2
+sys.stderr.write("\t- {0} nucleotides from each margin of the read will be skipped. The central part will be processed.\n".format(dist_from_bord))
+start = int(dist_from_bord) + 1
+end = read_length - int(dist_from_bord)
+sys.stderr.write("\t- Reads will be processed using the region going from {0} to {1}\n".format(start, end))
+#
+#function definition
+def make_unique(sequences_list):
+    seen = set()
+    seen_add = seen.add
+    return [x for x in sequences_list if not (x in seen or seen_add(x))]
+#
+#generate input dictionaries
+#here regions of analysis are being selected pairwise 
+#SINGLE END READS
+if args.reads_type == "SE":
+	sys.stderr.write("[ {0} ]\tReading Reads File\n".format(time.asctime()))
+	filename = args.reads_1.split("/")[-1]
+	INPUT = open(args.reads_1, "r")
+	sequences = []
+	counter = 4
+	k=0
+	for line in INPUT:
+		x = line.rstrip()
+		if counter%4 == 1:
+			short_x = x[start:end]
+			sequences.append(short_x)
+			counter += 1
+			k+=1
+		else:
+			counter += 1
+	INPUT.close()
+	sys.stderr.write("\t - Processed {0} reads.\n".format(k))
+	#
+	#deduplicating
+	sys.stderr.write("[ {0} ]\tDeduplicating\n".format(time.asctime()))
+	uniq_sequences = make_unique(sequences)
+	sys.stderr.write("\t - Reduced to {0} sequences.\n".format(len(uniq_sequences)))
+	del sequences
+	#
+	#printing to output
+	sys.stderr.write("[ {0} ]\tExtracting results\n".format(time.asctime()))
+	total_length = len(uniq_sequences)
+	INPUT = open(args.reads_1, "r")
+	output_names = []
+	output_list = []
+	output_qualities = []
+	counter = 3
+	k=0
+	for line in INPUT:
+		counter += 1
+		x = line.rstrip()
+		if k == len(uniq_sequences):
+			break
+		if counter%4 == 0:
+			read_name = x
+		if counter%4 == 1:
+			short_x = x[start:end]
+			if short_x == uniq_sequences[k]:
+				output_list.append(x)
+				output_names.append(read_name)
+				memo = "go"
+		elif counter%4 == 3:
+			short_x == x[start:end]
+			if memo == "go":
+				output_qualities.append(x)
+				k+=1
+				memo = "stop"
+	#
+	INPUT.close()
+	#
+	sys.stderr.write("[ {0} ]\tStarting writing to output\n".format(time.asctime()))
+	OUTPUT = open("{0}/dedup.{1}".format(args.output_directory, filename), "w")
+	if not args.keep_names:
+		if not args.fasta:
+			k=0
+			while (k < len(output_list)):
+				print >>OUTPUT, "@{0}_{1}".format(filename, k)
+				print >>OUTPUT, output_list[k]
+				print >>OUTPUT, "+"
+				print >>OUTPUT, output_qualities[k]
+				k+=1
+		elif args.fasta:
+			k=0
+			while (k < len(output_list)):
+				print >>OUTPUT, ">{0}_{1}".format(filename, k)
+				print >>OUTPUT, output_list[k]
+				k+=1
+	#
+	elif args.keep_names:
+		if not args.fasta:
+			k=0
+			while (k < len(output_list)):
+				print >>OUTPUT, output_names[k]
+				print >>OUTPUT, output_list[k]
+				print >>OUTPUT, "+"
+				print >>OUTPUT, output_qualities[k]
+				k+=1
+		elif args.fasta:
+			k=0
+			while (k < len(output_list)):
+				new_name = ">" + output_names[k][1:]
+				print >>OUTPUT, new_name
+				print >>OUTPUT, output_list[k]
+				k+=1
+	#
+	OUTPUT.close()
+	sys.stderr.write("[ {0} ]\tYour output is in {1}".format(time.asctime(), args.output_directory))
+#
+#PAIRED END READS
+elif args.reads_type == "PE":
+	import itertools 
+	filename_1 = args.reads_1.split("/")[-1]
+	filename_2 = args.reads_2.split("/")[-1]
+	with open(args.reads_1) as INPUT_1:
+		with open(args.reads_2) as INPUT_2:
+			sys.stderr.write("[ {0} ]\tReading Reads Files\n".format(time.asctime()))
+			sequences = []
+			counter = 4
+			k=0
+			for line_x, line_y in itertools.izip(INPUT_1, INPUT_2):
+				x = line_x.rstrip()
+				y = line_y.rstrip()
+				if counter%4 == 1:
+					short_x = x[start:end]
+					short_y = y[start:end]
+					short_read = short_x + "%" + short_y
+					sequences.append(short_read)
+					counter += 1
+					k+=1
+				else:
+					counter += 1
+	INPUT_1.close()
+	INPUT_2.close()
+	sys.stderr.write("\t - Processed {0} reads\n".format(k))
+	#
+	#deduplicating
+	sys.stderr.write("[ {0} ]\tDeduplicating\n".format(time.asctime()))
+	uniq_sequences = make_unique(sequences)
+	total_length = len(uniq_sequences)
+
+	#updating list to null value to save memory
+	sequences = []
+	#
+	sys.stderr.write("\t - Reduced to {0} reads\n".format(total_length))
+	uniq_1 = []
+	uniq_2 = []
+	for sequence in uniq_sequences:
+		uniq_1.append(sequence.split("%")[0])
+		uniq_2.append(sequence.split("%")[1])
+	#
+	sys.stderr.write("[ {0} ]\tExtracting results from reads files\n".format(time.asctime()))
+	with open(args.reads_1) as INPUT_1:
+		with open(args.reads_2) as INPUT_2:
+			output_names_1 = []
+			output_names_2 = []
+			output_list_1 = []
+			output_list_2 = []
+			output_quals_1 = []
+			output_quals_2 = []
+			counter = 3
+			k=0
+			for line_x, line_y in itertools.izip(INPUT_1, INPUT_2):
+				counter += 1
+				x = line_x.rstrip()
+				y = line_y.rstrip()
+				if k == len(uniq_sequences):
+					break
+				if counter%4 == 0:
+					read_name_1 = x
+					read_name_2 = y
+				elif counter%4 == 1:
+					short_x = x[start:end]
+					short_y = y[start:end]
+					if short_x == uniq_1[k] and short_y == uniq_2[k]:
+						output_list_1.append(x)
+						output_list_2.append(y)
+						output_names_1.append(read_name_1)
+						output_names_2.append(read_name_2)
+						memo = "go"
+				elif counter%4 == 3:
+					short_x = x[start:end]
+					short_y = y[start:end]
+					if memo == "go":
+						output_quals_1.append(x)
+						output_quals_2.append(y)
+						k+=1
+						memo = "stop"
+		#
+	INPUT_1.close()
+	INPUT_2.close()
+	#
+	sys.stderr.write("[ {0} ]\tStarting writing to output\n".format(time.asctime()))
+	OUTPUT_1 = open("{0}/dedup.{1}".format(args.output_directory, filename_1), "w")
+	OUTPUT_2 = open("{0}/dedup.{1}".format(args.output_directory, filename_2), "w")
+	counter = 0
+	if not args.keep_names:
+		if not args.fasta:
+			k=0
+			while (k<len(output_list_1)):
+				print >>OUTPUT_1, "@{0}_{1}_1".format(filename_1, k)
+				print >>OUTPUT_1, output_list_1[k]
+				print >>OUTPUT_1, "+"
+				print >>OUTPUT_1, output_quals_1[k]
+				print >>OUTPUT_2, "@{0}_{1}_2".format(filename_2, k)
+				print >>OUTPUT_2, output_list_2[k]
+				print >>OUTPUT_2, "+"
+				print >>OUTPUT_2, output_quals_2[k]
+				k+=1
+		elif args.fasta:
+			k=0
+			while (k<len(output_list_1)):
+				print >>OUTPUT_1, ">{0}_{1}_1".format(filename_1, k)
+				print >>OUTPUT_1, output_list_1[k]
+				print >>OUTPUT_2, ">{0}_{1}_2".format(filename_2, k)
+				print >>OUTPUT_2, output_list_2[k]
+				k+=1
+	#
+	elif args.keep_names:
+		if not args.fasta:
+			k=0
+			while (k<len(output_list_1)):
+				print >>OUTPUT_1, output_names_1[k]
+				print >>OUTPUT_1, output_list_1[k]
+				print >>OUTPUT_1, "+"
+				print >>OUTPUT_1, output_quals_1[k]
+				print >>OUTPUT_2, output_names_2[k]
+				print >>OUTPUT_2, output_list_2[k]
+				print >>OUTPUT_2, "+"
+				print >>OUTPUT_2, output_quals_2[k]
+				k+=1
+		elif args.fasta:
+			k=0
+			while (k<len(output_list_1)):
+				print >>OUTPUT_1, ">" + output_names_1[k][1:]
+				print >>OUTPUT_1, output_list_1[k]
+				print >>OUTPUT_2, ">" + output_names_2[k][1:]
+				print >>OUTPUT_2, output_list_2[k]
+				k+=1
+	#
+	OUTPUT_1.close()
+	OUTPUT_2.close()
+	#
+	sys.stderr.write("[ {0} ]\tYour output is in {1}\n".format(time.asctime(), args.output_directory))
+	#
+#
+sys.stderr.write("[ {0} ]\tEnded work at {0}\n".format(time.asctime()))
+
