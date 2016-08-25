@@ -15,7 +15,12 @@ import time
 import itertools
 
 # parser
-parser = argparse.ArgumentParser()
+parser = argparse.ArgumentParser(prog="SPIQR rename", formatter_class=argparse.RawDescriptionHelpFormatter, description='''
+----------------------------------------------------------------------------
+### Matteo Schiavinato # 2016 # BOKU - Vienna Institute of Biotechnology ###
+----------------------------------------------------------------------------
+'''
+, usage="\n\n\nSPIQR rename [options]\n\n\n")
 parser.add_argument("-R1", "--read-file-1", help="The reads file 1 (in case of single end reads, the only one that you have to specify.", metavar="PATH", required=True) 
 parser.add_argument("-R2", "--read-file-2", help="The reads file 2, use only when the reads are paired-end.", metavar="PATH")
 parser.add_argument("-o", "--output-directory", help="Specify the path to the output directory you want your output files in. Default=CURRENT", default=".", metavar="PATH")
@@ -30,9 +35,9 @@ args = parser.parse_args()
 
 # verifications
 if (args.use_for_rev or args.read_file_2 or args.keep_name_prefix) and (args.reads_type == "SE"):
-	sys.exit("[ {0} ]\tWARNING: The [--use-for-rev], [--read-file-2], [--keep-name-prefix] options are meant to be used only with paired-end reads.\nYou specified [--reads-type] as single-end\n".format(time.asctime()))
+	sys.exit("[{0}]\tWARNING: The [--use-for-rev], [--read-file-2], [--keep-name-prefix] options are meant to be used only with paired-end reads.\nYou specified [--reads-type] as single-end\n".format(time.asctime()))
 if (not args.read_file_2) and (args.reads_type == "PE"):
-	sys.exit("[ {0} ]\tWARNING: If you use paired-end reads [--reads-type PE] you must specify a second reads file with [--read-file-2]\n".format(time.asctime()))
+	sys.exit("[{0}]\tWARNING: If you use paired-end reads [--reads-type PE] you must specify a second reads file with [--read-file-2]\n".format(time.asctime()))
 
 # define read suffixes and prefixes
 if args.use_for_rev:
@@ -54,7 +59,7 @@ if args.reads_type == "SE":
         counter=0
         filename = args.read_file_1.split("/")[-1]
         OUTPUT = open("{0}/renamed.{1}".format(args.output_directory, filename), "w")
-        sys.stderr.write("[ {0} ]\tReading single-end reads file and writing to output\n".format(time.asctime()))
+        sys.stderr.write("[{0}]\tReading single-end reads file and writing to output\n".format(time.asctime()))
         INPUT = open(args.read_file_1, "r")
         for line in INPUT:
 		if k==1:
@@ -74,7 +79,7 @@ if args.reads_type == "SE":
                         print >>OUTPUT, line.rstrip()
                         k=1
 	#
-        sys.stderr.write("[ {0} ]\tFinished writing. Check your output at:\n\t - {1}/renamed.{2}\n".format(time.asctime(), args.output_directory.rstrip("/"), filename))
+        sys.stderr.write("[{0}]\tFinished writing. Check your output at:\n\t - {1}/renamed.{2}\n".format(time.asctime(), args.output_directory.rstrip("/"), filename))
 
 # PAIRED END READS
 if args.reads_type == "PE":
@@ -84,7 +89,7 @@ if args.reads_type == "PE":
 	filename_2 = args.read_file_2.split("/")[-1]
 	OUTPUT_1 = open("{0}/renamed.{1}".format(args.output_directory, filename_1), "w")
 	OUTPUT_2 = open("{0}/renamed.{1}".format(args.output_directory, filename_2), "w")
-	sys.stderr.write("[ {0} ]\tReading paired-end read files and writing to output\n".format(time.asctime()))
+	sys.stderr.write("[{0}]\tReading paired-end read files and writing to output\n".format(time.asctime()))
 	with open(args.read_file_1, "r") as INPUT_1:
 		with open(args.read_file_2, "r") as INPUT_2:
 			for line_x, line_y in itertools.izip(INPUT_1, INPUT_2):
@@ -124,4 +129,4 @@ if args.reads_type == "PE":
 					print >>OUTPUT_2, line_y.rstrip()
 					k=1
 		#
-	sys.stderr.write("[ {0} ]\tFinished writing. Check your output at:\n\t - {1}/renamed.{2}\n\t - {1}/renamed.{3}\n".format(time.asctime(), args.output_directory.rstrip("/"), filename_1, filename_2))
+	sys.stderr.write("[{0}]\tFinished writing. Check your output at:\n\t - {1}/renamed.{2}\n\t - {1}/renamed.{3}\n".format(time.asctime(), args.output_directory.rstrip("/"), filename_1, filename_2))

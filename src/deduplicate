@@ -14,7 +14,12 @@ import os
 import argparse
 #
 #parser
-parser = argparse.ArgumentParser()
+parser = argparse.ArgumentParser(prog="SPIQR deduplicate", formatter_class=argparse.RawDescriptionHelpFormatter, description='''
+----------------------------------------------------------------------------
+### Matteo Schiavinato # 2016 # BOKU - Vienna Institute of Biotechnology ###
+----------------------------------------------------------------------------
+'''
+, usage="\n\n\nSPIQR deduplicate [options]\n\n\n")
 parser.add_argument("-t", "--reads-type", help="PE: paired end, SE: single end.", required=True)
 parser.add_argument("-R1", "--reads-1", help="The FASTQ reads file to be processed. In case of paired end reads, the first of the two FASTQ reads files. [mandatory]", metavar="FILE", required=True)
 parser.add_argument("-R2", "--reads-2", help="Optional: if paired-end, the second of the two FASTQ reads files. Not needed if single-end.", metavar="FILE")

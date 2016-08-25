@@ -17,20 +17,22 @@ import random
 
 
 # parser
-parser = argparse.ArgumentParser()
-inputcmd = parser.add_argument_group("++++++++++++ INPUT OPTIONS ++++++++++++")
-subsetcmd = parser.add_argument_group("++++++++++++ SUBSETTING OPTIONS ++++++++++++")
-outputcmd = parser.add_argument_group("++++++++++++ OUTPUT OPTIONS ++++++++++++")
-inputcmd.add_argument("-R1", "--reads-file-1", help="The input file (if paired end, the R1 file). Can be in FASTA or FASTQ format.", required=True, metavar="FASTA/Q FILE")
-inputcmd.add_argument("-R2", "--reads-file-2", help="The R2 file (in case of paired end reads).", metavar="FASTA/Q FILE")
-inputcmd.add_argument("-t", "--reads-type", help="Specify \"PE\" for paired-end reads, or \"SE\" for single-end reads.", required=True, metavar="PE|SE")
-inputcmd.add_argument("--fasta", help="Use if your reads are in FASTA format.", action="store_true")
-subsetcmd.add_argument("-n", "--number-of-reads", help="How many reads do you want in your subset?", metavar="N", required=True, type=int)
-outputcmd.add_argument("-o", "--output-directory", help="Where to place the output files. [Default: current]", default=".")
-outputcmd.add_argument("-b", "--basename", help="Every output file will have this basename. [Default: \"subset\"]", default="subset")
+parser = argparse.ArgumentParser(prog="SPIQR subset", formatter_class=argparse.RawDescriptionHelpFormatter, description='''
+----------------------------------------------------------------------------
+### Matteo Schiavinato # 2016 # BOKU - Vienna Institute of Biotechnology ###
+----------------------------------------------------------------------------
+'''
+, usage="\n\n\nSPIQR subset [options]\n\n\n")
+parser.add_argument("-R1", "--reads-file-1", help="The input file (if paired end, the R1 file). Can be in FASTA or FASTQ format.", required=True, metavar="FASTA/Q FILE")
+parser.add_argument("-R2", "--reads-file-2", help="The R2 file (in case of paired end reads).", metavar="FASTA/Q FILE")
+parser.add_argument("-t", "--reads-type", help="Specify \"PE\" for paired-end reads, or \"SE\" for single-end reads.", required=True, metavar="PE|SE")
+parser.add_argument("--fasta", help="Use if your reads are in FASTA format.", action="store_true")
+parser.add_argument("-n", "--number-of-reads", help="How many reads do you want in your subset?", metavar="N", required=True, type=int)
+parser.add_argument("-o", "--output-directory", help="Where to place the output files. [Default: current]", default=".")
+parser.add_argument("-b", "--basename", help="Every output file will have this basename. [Default: \"subset\"]", default="subset")
 args = parser.parse_args()
 
-sys.stderr.write("[ {0} ]\tArguments parsed correctly\n".format(time.asctime()))
+sys.stderr.write("[{0}]\tArguments parsed correctly\n".format(time.asctime()))
 
 
 # verifications
@@ -41,7 +43,7 @@ if args.reads_file_2:
 # subsetting
 ### save all the read IDs
 if args.reads_type == "SE":
-	sys.stderr.write("[ {0} ]\tActing in: SINGLE END mode\n".format(time.asctime()))
+	sys.stderr.write("[{0}]\tActing in: SINGLE END mode\n".format(time.asctime()))
 	NAMES = []
 	INPUT = open(args.reads_file_1, "r")
 	k=0
@@ -58,7 +60,7 @@ if args.reads_type == "SE":
 			k=0
 	INPUT.close()
 	SAMPLED = random.sample(NAMES, args.number_of_reads)
-	sys.stderr.write("[ {0} ]\tSampled: {1} reads\n".format(time.asctime(), len(SAMPLED)))
+	sys.stderr.write("[{0}]\tSampled: {1} reads\n".format(time.asctime(), len(SAMPLED)))
 	INPUT = open(args.reads_file_1, "r")
 	OUTPUT = open("{0}/{1}.{2}".format(args.output_directory, args.basename, FILENAME_R1), "w")
         k=0
@@ -84,11 +86,11 @@ if args.reads_type == "SE":
                         k=0
         INPUT.close()
 	OUTPUT.close()
-	sys.stderr.write("[ {0} ]\tDone. Check your output at: {1}/{2}.{3}\n".format(time.asctime(), args.output_directory, args.basename, FILENAME_R1))
+	sys.stderr.write("[{0}]\tDone. Check your output at: {1}/{2}.{3}\n".format(time.asctime(), args.output_directory, args.basename, FILENAME_R1))
 	#
 #	
 elif args.reads_type == "PE":
-	sys.stderr.write("[ {0} ]\tActing in: PAIRED END mode\n".format(time.asctime()))
+	sys.stderr.write("[{0}]\tActing in: PAIRED END mode\n".format(time.asctime()))
         NAMES = {}
 	INPUT=open(args.reads_file_1, "r")
         k=0
@@ -112,7 +114,7 @@ elif args.reads_type == "PE":
 		INDEXES.append(NAMES[READNAME])
 		#
 	INDEXES_sorted = list(sorted(INDEXES))
-        sys.stderr.write("[ {0} ]\tSampled: {1} reads\n".format(time.asctime(), len(SAMPLED)))
+        sys.stderr.write("[{0}]\tSampled: {1} reads\n".format(time.asctime(), len(SAMPLED)))
 	with open(args.reads_file_1, "r") as INPUT_1:
 		with open(args.reads_file_2, "r") as INPUT_2:
 			OUTPUT_1 = open("{0}/{1}.{2}".format(args.output_directory, args.basename, FILENAME_R1), "w")
@@ -154,4 +156,4 @@ elif args.reads_type == "PE":
 			INPUT_2.close()
 			OUTPUT_1.close()
 			OUTPUT_2.close()
-			sys.stderr.write("[ {0} ]\tDone. Check your output at:\n\t\t\t - {1}/{2}.{3}\n\t\t\t - {1}/{2}.{4}\n".format(time.asctime(), args.output_directory, args.basename, FILENAME_R1, FILENAME_R2))
+			sys.stderr.write("[{0}]\tDone. Check your output at:\n\t\t\t - {1}/{2}.{3}\n\t\t\t - {1}/{2}.{4}\n".format(time.asctime(), args.output_directory, args.basename, FILENAME_R1, FILENAME_R2))
