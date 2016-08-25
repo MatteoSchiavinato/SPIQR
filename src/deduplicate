@@ -61,12 +61,11 @@ if not args.read_length:
 else:
 	read_length = int(args.reads_length)
 	#
-sys.stderr.write("\t- Estimated a read length of {} nucleotides on average.\n".format(read_length))
+sys.stderr.write("\t- Estimated a read length of {0} nucleotides on average.\n".format(read_length))
 #
-if ((args.region_start) or (args.region_end)) and (args.region_of_analysis):
-	sys.exit('''
-You cannot specify both [--region-of-analysis] and [-x | -y]. The two options are mutually exclusive.\n
-''')
+if args.region_start:
+	del args.region_of_analysis
+
 if (args.region_start and not args.region_end) or (args.region_end and not args.region_start):
 	sys.exit('''
 You must specify both [-x | --region-start] and [-y | --region-end].\n
@@ -328,5 +327,5 @@ elif args.reads_type == "PE":
 	sys.stderr.write("[{0}]\tYour output is in {1}\n".format(time.asctime(), args.output_directory))
 	#
 #
-sys.stderr.write("[{0}]\tEnded work at {0}\n".format(time.asctime()))
+sys.stderr.write("[{0}]\tEnded work\n".format(time.asctime()))
 
