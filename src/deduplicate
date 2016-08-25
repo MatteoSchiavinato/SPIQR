@@ -16,23 +16,25 @@ import argparse
 #parser
 parser = argparse.ArgumentParser()
 parser.add_argument("-t", "--reads-type", help="PE: paired end, SE: single end.", required=True)
-parser.add_argument("-R1", "--reads-1", help="The FASTQ reads file to be processed. In case of paired end reads, the first of the two FASTQ reads files. [mandatory]", metavar="PATH", required=True)
-parser.add_argument("-R2", "--reads-2", help="Optional: if paired-end, the second of the two FASTQ reads files. Not needed if single-end.", metavar="PATH")
+parser.add_argument("-R1", "--reads-1", help="The FASTQ reads file to be processed. In case of paired end reads, the first of the two FASTQ reads files. [mandatory]", metavar="FILE", required=True)
+parser.add_argument("-R2", "--reads-2", help="Optional: if paired-end, the second of the two FASTQ reads files. Not needed if single-end.", metavar="FILE")
 parser.add_argument("--keep-names", help="Use this option to keep the original names of the reads. (uses more memory)", action="store_true")
 parser.add_argument("--fasta", help="Force FASTA output (removing quality scores).", action="store_true")
 parser.add_argument("-o", "--output-directory", help="The directory where to write the output files. Defaults to WORKDIR.", metavar="PATH", default=".")
 parser.add_argument("-l", "--read-length", help="OPTIONAL: Specify how long are your Illuina reads. If not provided, the program will deduce this data from the reads theirselves. Speeds up things.", metavar="INTEGER", type=int)
 parser.add_argument("-r", "--region-of-analysis", help="OPTIONAL: How long do you want the tested region of identity to be? The program will consider a region with a spanning length equal to [N] percentage of the read length.\nIf not provided, the program will automatically use the 99-percent of a read length.", metavar="INTEGER", default=99, type=int)
+parser.add_argument("-x", "--region-start", help="Consider a particular region of the reads for the deduplication process. The region will start from this position and end in the [-y | --region-end] position.", metavar="INTEGER", type=int)
+parser.add_argument("-y", "--region-end", help="Consider a particular region of the reads for the deduplication process. The region will start from the [-x | --region-start] position and end in this position.", metavar="INTEGER", type=int)
 args = parser.parse_args()
 #
-sys.stderr.write("[ {0} ]\tBegin\n".format(time.asctime()))
+sys.stderr.write("[{0}]\tBegin\n".format(time.asctime()))
 #
 # preliminary calculations
 # script verifies the read length
 # estimates the region of analysis
 # detects how many nucleotides will be skipped from the margins
 typeslist = ["PE", "SE"]
-sys.stderr.write("[ {0} ]\tDoing verifications\n".format(time.asctime()))
+sys.stderr.write("[{0}]\tDoing verifications\n".format(time.asctime()))
 if args.reads_type not in typeslist:
 	sys.exit("Reads type must be one between PE or SE. See help for instructions.\n")
 	#
@@ -56,16 +58,31 @@ else:
 	#
 sys.stderr.write("\t- Estimated a read length of {} nucleotides on average.\n".format(read_length))
 #
-region = int((float(read_length) / 100)*args.region_of_analysis)
-n = int((float(read_length) / 100)*args.region_of_analysis)
-#
-sys.stderr.write("\t- Estimated a region of analysis of {} nucleotides.\n".format(region))
-dist_from_bord = (read_length - region)/2
-sys.stderr.write("\t- {0} nucleotides from each margin of the read will be skipped. The central part will be processed.\n".format(dist_from_bord))
-start = int(dist_from_bord) + 1
-end = read_length - int(dist_from_bord)
-sys.stderr.write("\t- Reads will be processed using the region going from {0} to {1}\n".format(start, end))
-#
+if ((args.region_start) or (args.region_end)) and (args.region_of_analysis):
+	sys.exit('''
+You cannot specify both [--region-of-analysis] and [-x | -y]. The two options are mutually exclusive.\n
+''')
+if (args.region_start and not args.region_end) or (args.region_end and not args.region_start):
+	sys.exit('''
+You must specify both [-x | --region-start] and [-y | --region-end].\n
+''')
+
+if not args.region_start:
+	region = int((float(read_length) / 100)*args.region_of_analysis)
+	n = int((float(read_length) / 100)*args.region_of_analysis)
+	#
+	sys.stderr.write("\t- Estimated a region of analysis of {} nucleotides.\n".format(region))
+	dist_from_bord = (read_length - region)/2
+	sys.stderr.write("\t- {0} nucleotides from each margin of the read will be skipped. The central part will be processed.\n".format(dist_from_bord))
+	start = int(dist_from_bord) + 1
+	end = read_length - int(dist_from_bord)
+	sys.stderr.write("\t- Reads will be processed using the region going from {0} to {1}\n".format(start, end))
+	#
+elif args.region_start:
+	start = int(args.region_start)
+	end = int(args.region_end)
+	sys.stderr.write("\t- Reads will be processed using the region going from {0} to {1}\n".format(start, end))
+	#
 #function definition
 def make_unique(sequences_list):
     seen = set()
@@ -76,7 +93,7 @@ def make_unique(sequences_list):
 #here regions of analysis are being selected pairwise 
 #SINGLE END READS
 if args.reads_type == "SE":
-	sys.stderr.write("[ {0} ]\tReading Reads File\n".format(time.asctime()))
+	sys.stderr.write("[{0}]\tReading Reads File\n".format(time.asctime()))
 	filename = args.reads_1.split("/")[-1]
 	INPUT = open(args.reads_1, "r")
 	sequences = []
@@ -95,13 +112,13 @@ if args.reads_type == "SE":
 	sys.stderr.write("\t - Processed {0} reads.\n".format(k))
 	#
 	#deduplicating
-	sys.stderr.write("[ {0} ]\tDeduplicating\n".format(time.asctime()))
+	sys.stderr.write("[{0}]\tDeduplicating\n".format(time.asctime()))
 	uniq_sequences = make_unique(sequences)
 	sys.stderr.write("\t - Reduced to {0} sequences.\n".format(len(uniq_sequences)))
 	del sequences
 	#
 	#printing to output
-	sys.stderr.write("[ {0} ]\tExtracting results\n".format(time.asctime()))
+	sys.stderr.write("[{0}]\tExtracting results\n".format(time.asctime()))
 	total_length = len(uniq_sequences)
 	INPUT = open(args.reads_1, "r")
 	output_names = []
@@ -131,7 +148,7 @@ if args.reads_type == "SE":
 	#
 	INPUT.close()
 	#
-	sys.stderr.write("[ {0} ]\tStarting writing to output\n".format(time.asctime()))
+	sys.stderr.write("[{0}]\tStarting writing to output\n".format(time.asctime()))
 	OUTPUT = open("{0}/dedup.{1}".format(args.output_directory, filename), "w")
 	if not args.keep_names:
 		if not args.fasta:
@@ -167,7 +184,7 @@ if args.reads_type == "SE":
 				k+=1
 	#
 	OUTPUT.close()
-	sys.stderr.write("[ {0} ]\tYour output is in {1}".format(time.asctime(), args.output_directory))
+	sys.stderr.write("[{0}]\tYour output is in {1}".format(time.asctime(), args.output_directory))
 #
 #PAIRED END READS
 elif args.reads_type == "PE":
@@ -176,7 +193,7 @@ elif args.reads_type == "PE":
 	filename_2 = args.reads_2.split("/")[-1]
 	with open(args.reads_1) as INPUT_1:
 		with open(args.reads_2) as INPUT_2:
-			sys.stderr.write("[ {0} ]\tReading Reads Files\n".format(time.asctime()))
+			sys.stderr.write("[{0}]\tReading Reads Files\n".format(time.asctime()))
 			sequences = []
 			counter = 4
 			k=0
@@ -197,7 +214,7 @@ elif args.reads_type == "PE":
 	sys.stderr.write("\t - Processed {0} reads\n".format(k))
 	#
 	#deduplicating
-	sys.stderr.write("[ {0} ]\tDeduplicating\n".format(time.asctime()))
+	sys.stderr.write("[{0}]\tDeduplicating\n".format(time.asctime()))
 	uniq_sequences = make_unique(sequences)
 	total_length = len(uniq_sequences)
 
@@ -211,7 +228,7 @@ elif args.reads_type == "PE":
 		uniq_1.append(sequence.split("%")[0])
 		uniq_2.append(sequence.split("%")[1])
 	#
-	sys.stderr.write("[ {0} ]\tExtracting results from reads files\n".format(time.asctime()))
+	sys.stderr.write("[{0}]\tExtracting results from reads files\n".format(time.asctime()))
 	with open(args.reads_1) as INPUT_1:
 		with open(args.reads_2) as INPUT_2:
 			output_names_1 = []
@@ -252,7 +269,7 @@ elif args.reads_type == "PE":
 	INPUT_1.close()
 	INPUT_2.close()
 	#
-	sys.stderr.write("[ {0} ]\tStarting writing to output\n".format(time.asctime()))
+	sys.stderr.write("[{0}]\tStarting writing to output\n".format(time.asctime()))
 	OUTPUT_1 = open("{0}/dedup.{1}".format(args.output_directory, filename_1), "w")
 	OUTPUT_2 = open("{0}/dedup.{1}".format(args.output_directory, filename_2), "w")
 	counter = 0
@@ -303,8 +320,8 @@ elif args.reads_type == "PE":
 	OUTPUT_1.close()
 	OUTPUT_2.close()
 	#
-	sys.stderr.write("[ {0} ]\tYour output is in {1}\n".format(time.asctime(), args.output_directory))
+	sys.stderr.write("[{0}]\tYour output is in {1}\n".format(time.asctime(), args.output_directory))
 	#
 #
-sys.stderr.write("[ {0} ]\tEnded work at {0}\n".format(time.asctime()))
+sys.stderr.write("[{0}]\tEnded work at {0}\n".format(time.asctime()))
 
