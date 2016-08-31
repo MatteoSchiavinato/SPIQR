@@ -30,6 +30,7 @@ parser.add_argument("-l", "--read-length", help="OPTIONAL: Specify how long are 
 parser.add_argument("-r", "--region-of-analysis", help="OPTIONAL: How long do you want the tested region of identity to be? The program will consider a region with a spanning length equal to [N] percentage of the read length.\nIf not provided, the program will automatically use the 99-percent of a read length.", metavar="INTEGER", default=99, type=int)
 parser.add_argument("-x", "--region-start", help="Consider a particular region of the reads for the deduplication process. The region will start from this position and end in the [-y | --region-end] position.", metavar="INTEGER", type=int)
 parser.add_argument("-y", "--region-end", help="Consider a particular region of the reads for the deduplication process. The region will start from the [-x | --region-start] position and end in this position.", metavar="INTEGER", type=int)
+parser.add_argument("--separator", help="In case you don't use the [--keep-names] function, the reads will be renamed in pairs and the R1 will get the 1 suffix while the R2 will get the 2 suffix. The suffix will be separated from the read core name with the specified [SEPARATOR]. The default is \"/\" and I recommend to use a different one only if really needed.", metavar="CHARACTER", default="/")
 args = parser.parse_args()
 #
 sys.stderr.write("[{0}]\tBegin\n".format(time.asctime()))
@@ -281,11 +282,11 @@ elif args.reads_type == "PE":
 		if not args.fasta:
 			k=0
 			while (k<len(output_list_1)):
-				print >>OUTPUT_1, "@{0}_{1}_1".format(filename_1, k)
+				print >>OUTPUT_1, "@{0}_{1}{2}1".format(filename_1, k, args.separator)
 				print >>OUTPUT_1, output_list_1[k]
 				print >>OUTPUT_1, "+"
 				print >>OUTPUT_1, output_quals_1[k]
-				print >>OUTPUT_2, "@{0}_{1}_2".format(filename_2, k)
+				print >>OUTPUT_2, "@{0}_{1}{2}2".format(filename_2, k, args.separator)
 				print >>OUTPUT_2, output_list_2[k]
 				print >>OUTPUT_2, "+"
 				print >>OUTPUT_2, output_quals_2[k]
@@ -293,9 +294,9 @@ elif args.reads_type == "PE":
 		elif args.fasta:
 			k=0
 			while (k<len(output_list_1)):
-				print >>OUTPUT_1, ">{0}_{1}_1".format(filename_1, k)
+				print >>OUTPUT_1, ">{0}_{1}{2}1".format(filename_1, k, args.separator)
 				print >>OUTPUT_1, output_list_1[k]
-				print >>OUTPUT_2, ">{0}_{1}_2".format(filename_2, k)
+				print >>OUTPUT_2, ">{0}_{1}{2}2".format(filename_2, k, args.separator)
 				print >>OUTPUT_2, output_list_2[k]
 				k+=1
 	#
