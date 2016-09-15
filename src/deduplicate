@@ -23,14 +23,14 @@ parser = argparse.ArgumentParser(prog="SPIQR deduplicate", formatter_class=argpa
 parser.add_argument("-t", "--reads-type", help="PE: paired end, SE: single end.", required=True)
 parser.add_argument("-R1", "--reads-1", help="The FASTQ reads file to be processed. In case of paired end reads, the first of the two FASTQ reads files. [mandatory]", metavar="FILE", required=True)
 parser.add_argument("-R2", "--reads-2", help="Optional: if paired-end, the second of the two FASTQ reads files. Not needed if single-end.", metavar="FILE")
-parser.add_argument("--keep-names", help="Use this option to keep the original names of the reads. (uses more memory)", action="store_true")
+parser.add_argument("--change-names", help="Use this option to change the original names of the reads. If deduplicating PAIRED END reads, the [--separator] option will then be required.", action="store_true")
 parser.add_argument("--fasta", help="Force FASTA output (removing quality scores).", action="store_true")
 parser.add_argument("-o", "--output-directory", help="The directory where to write the output files. Defaults to WORKDIR.", metavar="PATH", default=".")
 parser.add_argument("-l", "--read-length", help="OPTIONAL: Specify how long are your Illuina reads. If not provided, the program will deduce this data from the reads theirselves. Speeds up things.", metavar="INTEGER", type=int)
 parser.add_argument("-r", "--region-of-analysis", help="OPTIONAL: How long do you want the tested region of identity to be? The program will consider a region with a spanning length equal to [N] percentage of the read length.\nIf not provided, the program will automatically use the 99-percent of a read length.", metavar="INTEGER", default=99, type=int)
 parser.add_argument("-x", "--region-start", help="Consider a particular region of the reads for the deduplication process. The region will start from this position and end in the [-y | --region-end] position.", metavar="INTEGER", type=int)
 parser.add_argument("-y", "--region-end", help="Consider a particular region of the reads for the deduplication process. The region will start from the [-x | --region-start] position and end in this position.", metavar="INTEGER", type=int)
-parser.add_argument("--separator", help="In case you don't use the [--keep-names] function, the reads will be renamed in pairs and the R1 will get the 1 suffix while the R2 will get the 2 suffix. The suffix will be separated from the read core name with the specified [SEPARATOR]. The default is \"/\" and I recommend to use a different one only if really needed.", metavar="CHARACTER", default="/")
+parser.add_argument("--separator", help="In case you use the [--change-names] function and are deduplicating PAIRED END reads, the reads will be renamed in pairs and the R1 will get the 1 suffix while the R2 will get the 2 suffix. The suffix will be separated from the read core name with the specified [SEPARATOR]. The default is \"/\" and I recommend to use a different one only if really needed.", metavar="CHARACTER", default="/")
 args = parser.parse_args()
 #
 sys.stderr.write("[{0}]\tBegin\n".format(time.asctime()))
@@ -81,7 +81,8 @@ if not args.region_start:
 	sys.stderr.write("\t- {0} nucleotides from each margin of the read will be skipped. The central part will be processed.\n".format(dist_from_bord))
 	start = int(dist_from_bord) + 1
 	end = read_length - int(dist_from_bord)
-	sys.stderr.write("\t- Reads will be processed using the region going from {0} to {1}\n".format(start, end))
+	ratio = float(args.region_of_analysis) / 2
+	sys.stderr.write("\t- Reads will be processed using the {0}% of their sequence, {1}% on the left and {1}% on the right of the center of the read.\n".format(args.region_of_analysis, ratio))
 	#
 elif args.region_start:
 	start = int(args.region_start)
@@ -119,7 +120,8 @@ if args.reads_type == "SE":
 	#deduplicating
 	sys.stderr.write("[{0}]\tDeduplicating\n".format(time.asctime()))
 	uniq_sequences = make_unique(sequences)
-	sys.stderr.write("\t - Reduced to {0} sequences.\n".format(len(uniq_sequences)))
+	ratio = k/len(uniq_sequences)
+	sys.stderr.write("\t - Reduced to {0} sequences ( {1} % )\n".format(len(uniq_sequences), ratio))
 	del sequences
 	#
 	#printing to output
@@ -155,7 +157,7 @@ if args.reads_type == "SE":
 	#
 	sys.stderr.write("[{0}]\tStarting writing to output\n".format(time.asctime()))
 	OUTPUT = open("{0}/dedup.{1}".format(args.output_directory, filename), "w")
-	if not args.keep_names:
+	if args.change_names:
 		if not args.fasta:
 			k=0
 			while (k < len(output_list)):
@@ -171,7 +173,7 @@ if args.reads_type == "SE":
 				print >>OUTPUT, output_list[k]
 				k+=1
 	#
-	elif args.keep_names:
+	elif not args.change_names:
 		if not args.fasta:
 			k=0
 			while (k < len(output_list)):
@@ -278,7 +280,7 @@ elif args.reads_type == "PE":
 	OUTPUT_1 = open("{0}/dedup.{1}".format(args.output_directory, filename_1), "w")
 	OUTPUT_2 = open("{0}/dedup.{1}".format(args.output_directory, filename_2), "w")
 	counter = 0
-	if not args.keep_names:
+	if args.change_names:
 		if not args.fasta:
 			k=0
 			while (k<len(output_list_1)):
@@ -300,7 +302,7 @@ elif args.reads_type == "PE":
 				print >>OUTPUT_2, output_list_2[k]
 				k+=1
 	#
-	elif args.keep_names:
+	elif not args.change_names:
 		if not args.fasta:
 			k=0
 			while (k<len(output_list_1)):
