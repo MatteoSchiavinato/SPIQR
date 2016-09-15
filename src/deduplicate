@@ -60,7 +60,7 @@ if not args.read_length:
 	read_length = int(float(total) / float(k/4))
 	#
 else:
-	read_length = int(args.reads_length)
+	read_length = args.read_length
 	#
 sys.stderr.write("\t- Estimated a read length of {0} nucleotides on average.\n".format(read_length))
 #
@@ -76,7 +76,7 @@ if not args.region_start:
 	region = int((float(read_length) / 100)*args.region_of_analysis)
 	n = int((float(read_length) / 100)*args.region_of_analysis)
 	#
-	sys.stderr.write("\t- Estimated a region of analysis of {} nucleotides.\n".format(region))
+	sys.stderr.write("\t- Estimated a region of analysis of {0} nucleotides.\n".format(region))
 	dist_from_bord = (read_length - region)/2
 	sys.stderr.write("\t- {0} nucleotides from each margin of the read will be skipped. The central part will be processed.\n".format(dist_from_bord))
 	start = int(dist_from_bord) + 1
