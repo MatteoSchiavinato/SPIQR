@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+### new version!! ###
+### implemented the storage of the best quality read ###
 
 ### WARNING ###
 # USE THIS PROGRAM WITH PYTHON 2.7.*
@@ -12,6 +14,9 @@ import time
 import sys
 import os
 import argparse
+import numpy 
+import itertools
+
 #
 #parser
 parser = argparse.ArgumentParser(prog="SPIQR deduplicate", formatter_class=argparse.RawDescriptionHelpFormatter, description='''
@@ -23,14 +28,12 @@ parser = argparse.ArgumentParser(prog="SPIQR deduplicate", formatter_class=argpa
 parser.add_argument("-t", "--reads-type", help="PE: paired end, SE: single end.", required=True)
 parser.add_argument("-R1", "--reads-1", help="The FASTQ reads file to be processed. In case of paired end reads, the first of the two FASTQ reads files. [mandatory]", metavar="FILE", required=True)
 parser.add_argument("-R2", "--reads-2", help="Optional: if paired-end, the second of the two FASTQ reads files. Not needed if single-end.", metavar="FILE")
-parser.add_argument("--change-names", help="Use this option to change the original names of the reads. If deduplicating PAIRED END reads, the [--separator] option will then be required.", action="store_true")
-parser.add_argument("--fasta", help="Force FASTA output (removing quality scores).", action="store_true")
+parser.add_argument("--fasta-out", help="Force FASTA output (removing quality scores).", action="store_true")
 parser.add_argument("-o", "--output-directory", help="The directory where to write the output files. Defaults to WORKDIR.", metavar="PATH", default=".")
 parser.add_argument("-l", "--read-length", help="OPTIONAL: Specify how long are your Illuina reads. If not provided, the program will deduce this data from the reads theirselves. Speeds up things.", metavar="INTEGER", type=int)
 parser.add_argument("-r", "--region-of-analysis", help="OPTIONAL: How long do you want the tested region of identity to be? The program will consider a region with a spanning length equal to [N] percentage of the read length.\nIf not provided, the program will automatically use the 99-percent of a read length.", metavar="INTEGER", default=99, type=int)
 parser.add_argument("-x", "--region-start", help="Consider a particular region of the reads for the deduplication process. The region will start from this position and end in the [-y | --region-end] position.", metavar="INTEGER", type=int)
 parser.add_argument("-y", "--region-end", help="Consider a particular region of the reads for the deduplication process. The region will start from the [-x | --region-start] position and end in this position.", metavar="INTEGER", type=int)
-parser.add_argument("--separator", help="In case you use the [--change-names] function and are deduplicating PAIRED END reads, the reads will be renamed in pairs and the R1 will get the 1 suffix while the R2 will get the 2 suffix. The suffix will be separated from the read core name with the specified [SEPARATOR]. The default is \"/\" and I recommend to use a different one only if really needed.", metavar="CHARACTER", default="/")
 args = parser.parse_args()
 #
 sys.stderr.write("[{0}]\tBegin\n".format(time.asctime()))
@@ -94,241 +97,114 @@ def make_unique(sequences_list):
     seen = set()
     seen_add = seen.add
     return [x for x in sequences_list if not (x in seen or seen_add(x))]
-#
-#generate input dictionaries
-#here regions of analysis are being selected pairwise 
-#SINGLE END READS
+
+# generating main dictionary
+# without duplicates
+# keeping only the best read in quality among the duplicates
 if args.reads_type == "SE":
-	sys.stderr.write("[{0}]\tReading Reads File\n".format(time.asctime()))
+	QUALS = {}
 	filename = args.reads_1.split("/")[-1]
+	sys.stderr.write("[{0}]\tReading Reads File {1}\n".format(time.asctime(), filename))
 	INPUT = open(args.reads_1, "r")
-	sequences = []
-	counter = 4
-	k=0
-	for line in INPUT:
-		x = line.rstrip()
-		if counter%4 == 1:
-			short_x = x[start:end]
-			sequences.append(short_x)
-			counter += 1
-			k+=1
-		else:
-			counter += 1
-	INPUT.close()
-	sys.stderr.write("\t - Processed {0} reads.\n".format(k))
-	#
-	#deduplicating
-	sys.stderr.write("[{0}]\tDeduplicating\n".format(time.asctime()))
-	uniq_sequences = make_unique(sequences)
-	ratio = k/len(uniq_sequences)
-	sys.stderr.write("\t - Reduced to {0} sequences ( {1} % )\n".format(len(uniq_sequences), ratio))
-	del sequences
-	#
-	#printing to output
-	sys.stderr.write("[{0}]\tExtracting results\n".format(time.asctime()))
-	total_length = len(uniq_sequences)
-	INPUT = open(args.reads_1, "r")
-	output_names = []
-	output_list = []
-	output_qualities = []
 	counter = 3
-	k=0
+	k = 0
 	for line in INPUT:
 		counter += 1
-		x = line.rstrip()
-		if k == len(uniq_sequences):
-			break
 		if counter%4 == 0:
-			read_name = x
-		if counter%4 == 1:
-			short_x = x[start:end]
-			if short_x == uniq_sequences[k]:
-				output_list.append(x)
-				output_names.append(read_name)
-				memo = "go"
+			k += 1
+			read_name = line.rstrip()
+			if k == 10000000:
+				sys.stderr.write("[{0}]\tProcessed {1} reads\n".format(time.asctime(), k))
+		elif counter%4 == 1:
+			read_sequence = line.rstrip()
+			short_x = read_sequence[start:end]
+			try:
+				QUALS[short_x]
+			except KeyError:
+				QUALS[short_x] = ["", "", "", "", 0]
+		elif counter%4 == 2:
+			read_separator = line.rstrip()
 		elif counter%4 == 3:
-			short_x == x[start:end]
-			if memo == "go":
-				output_qualities.append(x)
-				k+=1
-				memo = "stop"
+			read_quality = line.rstrip()
+			quality_score = int(numpy.frombuffer(read_quality, "uint8").sum())
+			if quality_score > QUALS[short_x][4]:
+				QUALS[short_x] = [read_name, read_sequence, read_separator, read_quality, quality_score]
 	#
 	INPUT.close()
+	sys.stderr.write("[{0}]\tAnalyzed {1} reads\n".format(time.asctime(), k))
+	ratio = round(float(float(len(QUALS.keys())) / float(k))*100, 1)
+	sys.stderr.write("[{0}]\tOf these, {1} survived deduplication ( {2} % )\n".format(time.asctime(), len(QUALS.keys()), ratio))
 	#
-	sys.stderr.write("[{0}]\tStarting writing to output\n".format(time.asctime()))
+	sys.stderr.write("[{0}]\tWriting to output\n".format(time.asctime()))
 	OUTPUT = open("{0}/dedup.{1}".format(args.output_directory, filename), "w")
-	if args.change_names:
-		if not args.fasta:
-			k=0
-			while (k < len(output_list)):
-				print >>OUTPUT, "@{0}_{1}".format(filename, k)
-				print >>OUTPUT, output_list[k]
-				print >>OUTPUT, "+"
-				print >>OUTPUT, output_qualities[k]
-				k+=1
-		elif args.fasta:
-			k=0
-			while (k < len(output_list)):
-				print >>OUTPUT, ">{0}_{1}".format(filename, k)
-				print >>OUTPUT, output_list[k]
-				k+=1
-	#
-	elif not args.change_names:
-		if not args.fasta:
-			k=0
-			while (k < len(output_list)):
-				print >>OUTPUT, output_names[k]
-				print >>OUTPUT, output_list[k]
-				print >>OUTPUT, "+"
-				print >>OUTPUT, output_qualities[k]
-				k+=1
-		elif args.fasta:
-			k=0
-			while (k < len(output_list)):
-				new_name = ">" + output_names[k][1:]
-				print >>OUTPUT, new_name
-				print >>OUTPUT, output_list[k]
-				k+=1
+	for seed in QUALS:
+		del QUALS[seed][4]
+		if args.fasta_out:
+			QUALS[seed] = QUALS[seed][0:2]
+			QUALS[seed][0] = ">" + QUALS[seed][0][1:]
+		print >>OUTPUT, "\n".join(QUALS[seed])
 	#
 	OUTPUT.close()
-	sys.stderr.write("[{0}]\tYour output is in {1}".format(time.asctime(), args.output_directory))
+	sys.stderr.write("[{0}]\tWrote to output. Check results at: {1}/dedup.{2}\n".format(time.asctime(), args.output_directory, filename))
 #
-#PAIRED END READS
 elif args.reads_type == "PE":
-	import itertools 
+	QUALS = {}
 	filename_1 = args.reads_1.split("/")[-1]
 	filename_2 = args.reads_2.split("/")[-1]
-	with open(args.reads_1) as INPUT_1:
-		with open(args.reads_2) as INPUT_2:
-			sys.stderr.write("[{0}]\tReading Reads Files\n".format(time.asctime()))
-			sequences = []
-			counter = 4
-			k=0
-			for line_x, line_y in itertools.izip(INPUT_1, INPUT_2):
-				x = line_x.rstrip()
-				y = line_y.rstrip()
-				if counter%4 == 1:
-					short_x = x[start:end]
-					short_y = y[start:end]
-					short_read = short_x + "%" + short_y
-					sequences.append(short_read)
-					counter += 1
-					k+=1
-				else:
-					counter += 1
-	INPUT_1.close()
-	INPUT_2.close()
-	sys.stderr.write("\t - Processed {0} reads\n".format(k))
-	#
-	#deduplicating
-	sys.stderr.write("[{0}]\tDeduplicating\n".format(time.asctime()))
-	uniq_sequences = make_unique(sequences)
-	total_length = len(uniq_sequences)
-
-	#updating list to null value to save memory
-	sequences = []
-	#
-	sys.stderr.write("\t - Reduced to {0} reads\n".format(total_length))
-	uniq_1 = []
-	uniq_2 = []
-	for sequence in uniq_sequences:
-		uniq_1.append(sequence.split("%")[0])
-		uniq_2.append(sequence.split("%")[1])
-	#
-	sys.stderr.write("[{0}]\tExtracting results from reads files\n".format(time.asctime()))
-	with open(args.reads_1) as INPUT_1:
-		with open(args.reads_2) as INPUT_2:
-			output_names_1 = []
-			output_names_2 = []
-			output_list_1 = []
-			output_list_2 = []
-			output_quals_1 = []
-			output_quals_2 = []
-			counter = 3
-			k=0
-			for line_x, line_y in itertools.izip(INPUT_1, INPUT_2):
+        sys.stderr.write("[{0}]\tReading Reads Files {1} and {2}\n".format(time.asctime(), filename_1, filename_2))
+        with open(args.reads_1) as INPUT_1:
+                with open(args.reads_2) as INPUT_2:
+                        counter = 3
+                        k=0
+                        for line_x, line_y in itertools.izip(INPUT_1, INPUT_2):
 				counter += 1
-				x = line_x.rstrip()
-				y = line_y.rstrip()
-				if k == len(uniq_sequences):
-					break
 				if counter%4 == 0:
-					read_name_1 = x
-					read_name_2 = y
-				elif counter%4 == 1:
-					short_x = x[start:end]
-					short_y = y[start:end]
-					if short_x == uniq_1[k] and short_y == uniq_2[k]:
-						output_list_1.append(x)
-						output_list_2.append(y)
-						output_names_1.append(read_name_1)
-						output_names_2.append(read_name_2)
-						memo = "go"
+					read_name_x = line_x.rstrip()
+					read_name_y = line_y.rstrip()
+                                elif counter%4 == 1:
+					read_sequence_x = line_x.rstrip()
+					read_sequence_y = line_y.rstrip()
+                                        short_x = read_sequence_x[start:end]
+                                        short_y = read_sequence_y[start:end]
+                                        short_read = short_x + "%" + short_y
+					try:
+						QUALS[short_read]
+					except KeyError:
+						QUALS[short_read] = [[], [], 0]
+                                        k+=1
+					if k%10000000 == 0:
+						sys.stderr.write("[{0}]\tProcessed {1} mates\n".format(time.asctime(), k))
+				elif counter%4 == 2:
+					read_separator_x = line_x.rstrip()
+					read_separator_y = line_y.rstrip()
 				elif counter%4 == 3:
-					short_x = x[start:end]
-					short_y = y[start:end]
-					if memo == "go":
-						output_quals_1.append(x)
-						output_quals_2.append(y)
-						k+=1
-						memo = "stop"
-		#
-	INPUT_1.close()
-	INPUT_2.close()
+					read_quality_x = line_x.rstrip()
+					quality_score_x = int(numpy.frombuffer(read_quality_x, "uint8").sum())
+					read_quality_y = line_y.rstrip()
+					quality_score_y = int(numpy.frombuffer(read_quality_y, "uint8").sum())
+					quality_score = quality_score_x + quality_score_y
+					if quality_score > QUALS[short_read][2]:
+						QUALS[short_read] = [[read_name_x, read_sequence_x, read_separator_x, read_quality_x], [read_name_y, read_sequence_y, read_separator_y, read_quality_y], quality_score]
 	#
-	sys.stderr.write("[{0}]\tStarting writing to output\n".format(time.asctime()))
-	OUTPUT_1 = open("{0}/dedup.{1}".format(args.output_directory, filename_1), "w")
+        INPUT_1.close()
+        INPUT_2.close()
+	#
+	sys.stderr.write("[{0}]\tAnalyzed {1} pairs ( {2} reads )\n".format(time.asctime(), k, k*2))
+        ratio = round(float(float(len(QUALS.keys())) /float(k))*100, 1)
+        sys.stderr.write("[{0}]\tOf these, {1} pairs survived deduplication ( {2} % )\n".format(time.asctime(), len(QUALS.keys()), ratio))
+	#
+	sys.stderr.write("[{0}]\tWriting to output\n".format(time.asctime()))
+        OUTPUT_1 = open("{0}/dedup.{1}".format(args.output_directory, filename_1), "w")
 	OUTPUT_2 = open("{0}/dedup.{1}".format(args.output_directory, filename_2), "w")
-	counter = 0
-	if args.change_names:
-		if not args.fasta:
-			k=0
-			while (k<len(output_list_1)):
-				print >>OUTPUT_1, "@{0}_{1}{2}1".format(filename_1, k, args.separator)
-				print >>OUTPUT_1, output_list_1[k]
-				print >>OUTPUT_1, "+"
-				print >>OUTPUT_1, output_quals_1[k]
-				print >>OUTPUT_2, "@{0}_{1}{2}2".format(filename_2, k, args.separator)
-				print >>OUTPUT_2, output_list_2[k]
-				print >>OUTPUT_2, "+"
-				print >>OUTPUT_2, output_quals_2[k]
-				k+=1
-		elif args.fasta:
-			k=0
-			while (k<len(output_list_1)):
-				print >>OUTPUT_1, ">{0}_{1}{2}1".format(filename_1, k, args.separator)
-				print >>OUTPUT_1, output_list_1[k]
-				print >>OUTPUT_2, ">{0}_{1}{2}2".format(filename_2, k, args.separator)
-				print >>OUTPUT_2, output_list_2[k]
-				k+=1
-	#
-	elif not args.change_names:
-		if not args.fasta:
-			k=0
-			while (k<len(output_list_1)):
-				print >>OUTPUT_1, output_names_1[k]
-				print >>OUTPUT_1, output_list_1[k]
-				print >>OUTPUT_1, "+"
-				print >>OUTPUT_1, output_quals_1[k]
-				print >>OUTPUT_2, output_names_2[k]
-				print >>OUTPUT_2, output_list_2[k]
-				print >>OUTPUT_2, "+"
-				print >>OUTPUT_2, output_quals_2[k]
-				k+=1
-		elif args.fasta:
-			k=0
-			while (k<len(output_list_1)):
-				print >>OUTPUT_1, ">" + output_names_1[k][1:]
-				print >>OUTPUT_1, output_list_1[k]
-				print >>OUTPUT_2, ">" + output_names_2[k][1:]
-				print >>OUTPUT_2, output_list_2[k]
-				k+=1
-	#
-	OUTPUT_1.close()
+        for seed in QUALS:
+		if args.fasta_out:
+			QUALS[seed][0] = QUALS[seed][0][0:2]
+			QUALS[seed][0][0] = ">" + QUALS[seed][0][0][1:]
+			QUALS[seed][1] = QUALS[seed][1][0:2]
+			QUALS[seed][1][0] = ">" + QUALS[seed][1][0][1:]
+                print >>OUTPUT_1, "\n".join(QUALS[seed][0])
+		print >>OUTPUT_2, "\n".join(QUALS[seed][1])
+        #
+        OUTPUT_1.close()
 	OUTPUT_2.close()
-	#
-	sys.stderr.write("[{0}]\tYour output is in {1}\n".format(time.asctime(), args.output_directory))
-	#
-#
-sys.stderr.write("[{0}]\tEnded work\n".format(time.asctime()))
-
+        sys.stderr.write("[{0}]\tWrote to output. Check results at: {1}/dedup.{2} and {1}/dedup.{3}\n".format(time.asctime(), args.output_directory, filename_1, filename_2))
