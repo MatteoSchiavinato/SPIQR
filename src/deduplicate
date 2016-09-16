@@ -4,8 +4,8 @@
 ### implemented the storage of the best quality read ###
 
 ### WARNING ###
-# USE THIS PROGRAM WITH PYTHON 2.7.*
-# Matteo Schiavinato
+	# USE THIS PROGRAM WITH PYTHON 2.7.*
+	# Matteo Schiavinato
 # 2016
 # BOKU - Vienna Institute of Biotechnology
 
@@ -92,6 +92,12 @@ elif args.region_start:
 	end = int(args.region_end)
 	sys.stderr.write("\t- Reads will be processed using the region going from {0} to {1}\n".format(start, end))
 	#
+
+# set extension for output files
+extension = "fastq"
+if args.fasta_out:
+	extension = "fa"
+
 #function definition
 def make_unique(sequences_list):
     seen = set()
@@ -108,6 +114,7 @@ if args.reads_type == "SE":
 	INPUT = open(args.reads_1, "r")
 	counter = 3
 	k = 0
+	DISCARDED = open("{0}/discarded.{1}".format(args.output_directory, filename), "w")
 	for line in INPUT:
 		counter += 1
 		if counter%4 == 0:
@@ -127,13 +134,24 @@ if args.reads_type == "SE":
 		elif counter%4 == 3:
 			read_quality = line.rstrip()
 			quality_score = int(numpy.frombuffer(read_quality, "uint8").sum())
-			if quality_score > QUALS[short_x][4]:
+			if (quality_score > QUALS[short_x][4]) and (QUALS[short_x][4] > 0):
+				if args.fasta_out:
+					print >>DISCARDED, "\n".join(QUALS[short_x][0:2])
+				else:
+					print >>DISCARDED, "\n".join(QUALS[short_x][0:4])
 				QUALS[short_x] = [read_name, read_sequence, read_separator, read_quality, quality_score]
+			else:
+				if args.fasta_out:
+                                        print >>DISCARDED, "\n".join([read_name, read_sequence])
+                                else:
+                                        print >>DISCARDED, "\n".join([read_name, read_sequence, read_separator, read_quality])
 	#
 	INPUT.close()
+	DISCARDED.close()
 	sys.stderr.write("[{0}]\tAnalyzed {1} reads\n".format(time.asctime(), k))
 	ratio = round(float(float(len(QUALS.keys())) / float(k))*100, 1)
 	sys.stderr.write("[{0}]\tOf these, {1} survived deduplication ( {2} % )\n".format(time.asctime(), len(QUALS.keys()), ratio))
+	sys.stderr.write("[{0}]\tDuplicated reads stored in {1}/discarded.{2}\n".format(time.asctime(), args.output_directory, filename))
 	#
 	sys.stderr.write("[{0}]\tWriting to output\n".format(time.asctime()))
 	OUTPUT = open("{0}/dedup.{1}".format(args.output_directory, filename), "w")
@@ -151,6 +169,8 @@ elif args.reads_type == "PE":
 	QUALS = {}
 	filename_1 = args.reads_1.split("/")[-1]
 	filename_2 = args.reads_2.split("/")[-1]
+	DISCARDED_1 = open("{0}/discarded.{1}".format(args.output_directory, filename_1), "w")
+	DISCARDED_2 = open("{0}/discarded.{1}".format(args.output_directory, filename_2), "w")
         sys.stderr.write("[{0}]\tReading Reads Files {1} and {2}\n".format(time.asctime(), filename_1, filename_2))
         with open(args.reads_1) as INPUT_1:
                 with open(args.reads_2) as INPUT_2:
@@ -183,15 +203,31 @@ elif args.reads_type == "PE":
 					read_quality_y = line_y.rstrip()
 					quality_score_y = int(numpy.frombuffer(read_quality_y, "uint8").sum())
 					quality_score = quality_score_x + quality_score_y
-					if quality_score > QUALS[short_read][2]:
+					if (quality_score > QUALS[short_read][2]) and (QUALS[short_read][2] > 0):
+						if args.fasta_out:
+							print >>DISCARDED_1, "\n".join(QUALS[short_read][0][0:2])
+							print >>DISCARDED_2, "\n".join(QUALS[short_read][1][0:2])
+						else:
+							print >>DISCARDED_1, "\n".join(QUALS[short_read][0][0:4])
+							print >>DISCARDED_2, "\n".join(QUALS[short_read][1][0:4])
 						QUALS[short_read] = [[read_name_x, read_sequence_x, read_separator_x, read_quality_x], [read_name_y, read_sequence_y, read_separator_y, read_quality_y], quality_score]
+					else:
+						if args.fasta_out:
+                                                        print >>DISCARDED_1, "\n".join([read_name_x, read_sequence_x])
+                                                        print >>DISCARDED_2, "\n".join([read_name_y, read_sequence_y])
+                                                else:
+                                                        print >>DISCARDED_1, "\n".join([read_name_x, read_sequence_x, read_separator_x, read_quality_x])
+                                                        print >>DISCARDED_2, "\n".join([read_name_y, read_sequence_y, read_separator_y, read_quality_y])
 	#
         INPUT_1.close()
         INPUT_2.close()
+	DISCARDED_1.close()
+	DISCARDED_2.close()
 	#
 	sys.stderr.write("[{0}]\tAnalyzed {1} pairs ( {2} reads )\n".format(time.asctime(), k, k*2))
         ratio = round(float(float(len(QUALS.keys())) /float(k))*100, 1)
         sys.stderr.write("[{0}]\tOf these, {1} pairs survived deduplication ( {2} % )\n".format(time.asctime(), len(QUALS.keys()), ratio))
+	sys.stderr.write("[{0}]\tStored discarded pairs in {1}/discarded.{2} and {1}/discarded.{3}\n".format(time.asctime(), args.output_directory, filename_1, filename_2))
 	#
 	sys.stderr.write("[{0}]\tWriting to output\n".format(time.asctime()))
         OUTPUT_1 = open("{0}/dedup.{1}".format(args.output_directory, filename_1), "w")
