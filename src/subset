@@ -42,36 +42,42 @@ if args.reads_file_2:
 	FILENAME_R2 = args.reads_file_2.split("/")[-1]
 
 # subsetting
-### save all the read IDs
 if args.reads_type == "SE":
 	sys.stderr.write("[{0}]\tActing in: SINGLE END mode\n".format(time.asctime()))
 	NAMES = []
 	INPUT = open(args.reads_file_1, "r")
 	k=0
-	for line in INPUT:
-		k+=1
-		if k == 1:
-			NAMES.append(line.rstrip())
-		elif k == 2:
-			if args.fasta:
-				k=0
-		elif k == 3:
-			pass
-		elif k == 4:
-			k=0
-	INPUT.close()
 	if args.number_of_reads:
+		for line in INPUT:
+			k+=1
+			if k == 1:
+				name = line.rstrip().split()[0][1:]
+				NAMES.append(name)
+			elif k == 2:
+				if args.fasta:
+					k=0
+			elif k == 3:
+				pass
+			elif k == 4:
+				k=0
+		INPUT.close()
 		SAMPLED = random.sample(NAMES, args.number_of_reads)
+		#
 	elif args.read_names:
 		INPUT = open(args.read_names, "r")
 		SAMPLED = []
 		for line in INPUT:
-			SAMPLED.append(line.rstrip())
+			if line.rstrip().split()[0][0:1] in ["@", ">"]:
+				name = line.rstrip().split()[0][1:]
+			else:
+				name = line.rstrip().split()[0]
+			SAMPLED.append(name)
 		#	
 		INPUT.close()
+		#
 	else:
 		sys.exit("[{0}]\tNo selection criteria specified. Program will be closed. Specify one between --read-names and --number-of-reads\n".format(time.asctime()))
-	#
+		#
 	sys.stderr.write("[{0}]\tSampled: {1} reads\n".format(time.asctime(), len(SAMPLED)))
 	INPUT = open(args.reads_file_1, "r")
 	OUTPUT = open("{0}/{1}.{2}".format(args.output_directory, args.basename, FILENAME_R1), "w")
@@ -80,7 +86,7 @@ if args.reads_type == "SE":
         for line in INPUT:
                 k+=1
                 if k == 1:
-                        if line.rstrip() in SAMPLED:
+                        if line.rstrip().split()[0][1:] in SAMPLED:
 				print_switch = "on"
 				print >>OUTPUT, line.rstrip()
                 elif (k == 2):	
@@ -103,69 +109,78 @@ if args.reads_type == "SE":
 #	
 elif args.reads_type == "PE":
 	sys.stderr.write("[{0}]\tActing in: PAIRED END mode\n".format(time.asctime()))
-        NAMES = {}
-	INPUT=open(args.reads_file_1, "r")
-        k=0
-	counter=0
-        for line in INPUT:
-                k+=1
-                if k == 1:
-			counter += 1
-                        NAMES[line.rstrip()] = counter
-                elif k == 2:
-                        if args.fasta:
-                                k=0
-                elif k == 3:
-                        pass
-                elif k == 4:
-                        k=0
-        INPUT.close()
-        SAMPLED = random.sample(NAMES.keys(), args.number_of_reads)
-	INDEXES = []
-	for READNAME in SAMPLED:
-		INDEXES.append(NAMES[READNAME])
+	if args.number_of_reads:
+		INPUT=open(args.reads_file_1, "r")
+		k=0
+		for line in INPUT:
+			k+=1
+			if k == 1:
+				name = line.rstrip().split()[0][1:]
+				NAMES.append(name)
+			elif k == 2:
+				if args.fasta:
+					k=0
+			elif k == 3:
+				pass
+			elif k == 4:
+				k=0
+		INPUT.close()
+		UNIQNAMES = list(set(NAMES))
+	        SAMPLED = random.sample(UNIQNAMES, args.number_of_reads)
 		#
-	INDEXES_sorted = list(sorted(INDEXES))
+	elif args.read_names:
+		INPUT = open(args.read_names, "r")
+		SAMPLED = []
+		for line in INPUT:
+			if line.rstrip().split()[0][0:1] in ["@", ">"]:
+				name = line.rstrip().split()[0][1:]
+			else:
+				name = line.rstrip().split()[0]
+			SAMPLED.append(name)
+		#
+		INPUT.close()
+		#
+	else:
+		sys.exit("[{0}]\tYou must select at least --read-names or --number-of-reads\n".format(time.asctime()))
+		#
         sys.stderr.write("[{0}]\tSampled: {1} reads\n".format(time.asctime(), len(SAMPLED)))
 	with open(args.reads_file_1, "r") as INPUT_1:
 		with open(args.reads_file_2, "r") as INPUT_2:
 			OUTPUT_1 = open("{0}/{1}.{2}".format(args.output_directory, args.basename, FILENAME_R1), "w")
 			OUTPUT_2 = open("{0}/{1}.{2}".format(args.output_directory, args.basename, FILENAME_R2), "w")
 			k=0
-			j=0
-			counter=0
-			print_switch = "off"
+			switch = "off"
 			for line_x, line_y in itertools.izip(INPUT_1, INPUT_2):
-				if (j <= len(INDEXES_sorted)-1):
-					k+=1
-					if k == 1:
-						counter+=1
-						index = INDEXES_sorted[j]
-						if (counter == index):
-							print_switch = "on"
-							print >>OUTPUT_1, line_x.rstrip()
-							print >>OUTPUT_2, line_y.rstrip()
-					elif (k == 2):
-						if print_switch == "on":
-							print >>OUTPUT_1, line_x.rstrip()
-							print >>OUTPUT_2, line_y.rstrip()
-						if args.fasta:
-							print_switch = "off"
-							k=0
-					elif (k == 3) and (print_switch == "on"):
+				k+=1
+				if k==1:
+					name_x = line_x.rstrip().split()[0][1:]
+					name_y = line_y.rstrip().split()[0][1:]
+					if (name_x in SAMPLED) and (name_y in SAMPLED):
+						switch = "on"
 						print >>OUTPUT_1, line_x.rstrip()
 						print >>OUTPUT_2, line_y.rstrip()
-					elif (k == 4):
-						if print_switch == "on":
-							print >>OUTPUT_1, line_x.rstrip()
-							print >>OUTPUT_2, line_y.rstrip()
-							j+=1
-						print_switch = "off"
+				elif k==2:
+					if switch == "on":
+						print >>OUTPUT_1, line_x.rstrip()
+						print >>OUTPUT_2, line_y.rstrip()
+					if args.fasta:
 						k=0
-				else:
-					break
+						switch="off"
+				elif k==3:
+					if switch == "on":
+						print >>OUTPUT_1, line_x.rstrip()
+						print >>OUTPUT_2, line_y.rstrip()
+				elif k==4:
+					if switch == "on":
+						print >>OUTPUT_1, line_x.rstrip()
+						print >>OUTPUT_2, line_y.rstrip()
+					#
+					k=0
+					switch="off"
+			#		
 			INPUT_1.close()
 			INPUT_2.close()
 			OUTPUT_1.close()
 			OUTPUT_2.close()
+			#
 			sys.stderr.write("[{0}]\tDone. Check your output at:\n\t\t\t - {1}/{2}.{3}\n\t\t\t - {1}/{2}.{4}\n".format(time.asctime(), args.output_directory, args.basename, FILENAME_R1, FILENAME_R2))
