@@ -62,8 +62,10 @@ if args.reads_type == "SE":
 				k=0
 		INPUT.close()
 		SAMPLED = random.sample(NAMES, args.number_of_reads)
+		sys.stderr.write("[{0}]\tSampled: {1} reads\n".format(time.asctime(), len(SAMPLED)))
 		#
 	elif args.read_names:
+		j=0
 		INPUT = open(args.read_names, "r")
 		SAMPLED = []
 		for line in INPUT:
@@ -72,8 +74,11 @@ if args.reads_type == "SE":
 			else:
 				name = line.rstrip().split()[0]
 			SAMPLED.append(name)
+			j+=1
 		#	
 		INPUT.close()
+		sys.stderr.write("[{0}]\tStored {1} read IDs\n".format(time.asctime(), j))
+		oldJ = j
 		#
 	else:
 		sys.exit("[{0}]\tNo selection criteria specified. Program will be closed. Specify one between --read-names and --number-of-reads\n".format(time.asctime()))
@@ -82,12 +87,14 @@ if args.reads_type == "SE":
 	INPUT = open(args.reads_file_1, "r")
 	OUTPUT = open("{0}/{1}.{2}".format(args.output_directory, args.basename, FILENAME_R1), "w")
         k=0
+	j=0
 	print_switch = "off"
         for line in INPUT:
                 k+=1
                 if k == 1:
                         if line.rstrip().split()[0][1:] in SAMPLED:
 				print_switch = "on"
+				j+=1
 				print >>OUTPUT, line.rstrip()
                 elif (k == 2):	
 			if print_switch == "on":
@@ -104,6 +111,7 @@ if args.reads_type == "SE":
                         k=0
         INPUT.close()
 	OUTPUT.close()
+	sys.stderr.write("[{0}]\t{1} of the {2} stored read IDs were found in the input file\n".format(time.asctime(), j, oldJ))
 	sys.stderr.write("[{0}]\tDone. Check your output at: {1}/{2}.{3}\n".format(time.asctime(), args.output_directory, args.basename, FILENAME_R1))
 	#
 #	
@@ -116,6 +124,7 @@ elif args.reads_type == "PE":
 			k+=1
 			if k == 1:
 				name = line.rstrip().split()[0][1:]
+				print name
 				NAMES.append(name)
 			elif k == 2:
 				if args.fasta:
@@ -127,28 +136,33 @@ elif args.reads_type == "PE":
 		INPUT.close()
 		UNIQNAMES = list(set(NAMES))
 	        SAMPLED = random.sample(UNIQNAMES, args.number_of_reads)
+		sys.stderr.write("[{0}]\tSampled: {1} reads\n".format(time.asctime(), len(SAMPLED)))
 		#
 	elif args.read_names:
 		INPUT = open(args.read_names, "r")
 		SAMPLED = []
+		j=0
 		for line in INPUT:
 			if line.rstrip().split()[0][0:1] in ["@", ">"]:
 				name = line.rstrip().split()[0][1:]
 			else:
 				name = line.rstrip().split()[0]
 			SAMPLED.append(name)
+			j+=1
 		#
 		INPUT.close()
+		sys.stderr.write("[{0}]\tStored {1} read IDs\n".format(time.asctime(), j))
+		oldJ = j
 		#
 	else:
 		sys.exit("[{0}]\tYou must select at least --read-names or --number-of-reads\n".format(time.asctime()))
 		#
-        sys.stderr.write("[{0}]\tSampled: {1} reads\n".format(time.asctime(), len(SAMPLED)))
 	with open(args.reads_file_1, "r") as INPUT_1:
 		with open(args.reads_file_2, "r") as INPUT_2:
 			OUTPUT_1 = open("{0}/{1}.{2}".format(args.output_directory, args.basename, FILENAME_R1), "w")
 			OUTPUT_2 = open("{0}/{1}.{2}".format(args.output_directory, args.basename, FILENAME_R2), "w")
 			k=0
+			j=0
 			switch = "off"
 			for line_x, line_y in itertools.izip(INPUT_1, INPUT_2):
 				k+=1
@@ -157,6 +171,7 @@ elif args.reads_type == "PE":
 					name_y = line_y.rstrip().split()[0][1:]
 					if (name_x in SAMPLED) and (name_y in SAMPLED):
 						switch = "on"
+						j+=1
 						print >>OUTPUT_1, line_x.rstrip()
 						print >>OUTPUT_2, line_y.rstrip()
 				elif k==2:
@@ -183,4 +198,5 @@ elif args.reads_type == "PE":
 			OUTPUT_1.close()
 			OUTPUT_2.close()
 			#
+			sys.stderr.write("[{0}]\t{1} of the {2} stored read IDs were found in the input file\n".format(time.asctime(), j, oldJ))
 			sys.stderr.write("[{0}]\tDone. Check your output at:\n\t\t\t - {1}/{2}.{3}\n\t\t\t - {1}/{2}.{4}\n".format(time.asctime(), args.output_directory, args.basename, FILENAME_R1, FILENAME_R2))
